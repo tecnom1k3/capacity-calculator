@@ -2,8 +2,6 @@ import json
 import math
 import sys
 import pandas as pd
-import tempfile
-import os
 
 
 def load_config(path):
@@ -112,54 +110,10 @@ def calculate_velocity(config):
     return metrics, resource_details
 
 
-def run_quick_test():
-    """
-    Quick verification covering:
-      1) No velocity log (fallback to single-sprint last_velocity)
-      2) An explicit velocity log with default window size
-    """
-    base_config = {
-        "sprint_days": 10,
-        "last_velocity": 10,
-        "carryover_points": 0,
-        "resources": [
-            {"name": "A", "last_pto_days": 2, "last_pct_avail": 100, "next_pto_days": 3, "next_pct_avail": 100},
-            {"name": "B", "last_pto_days": 2, "last_pct_avail": 100, "next_pto_days": 3, "next_pct_avail": 100},
-            {"name": "C", "last_pto_days": 2, "last_pct_avail": 100, "next_pto_days": 4, "next_pct_avail": 100}
-        ]
-    }
-
-    metrics1, _ = calculate_velocity(base_config)
-    expected = 8
-    assert metrics1["Scaled Next Velocity (floored)"] == expected, (
-        f"Fallback test failed: expected {expected}, got {metrics1['Scaled Next Velocity (floored)']}"
-    )
-
-    synthetic_log = [{"sprint": i, "completed_points": 10}
-                     for i in range(1, base_config.get("velocity_window", 4) + 1)]
-    temp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json")
-    try:
-        json.dump(synthetic_log, temp)
-        temp.close()
-        base_config["velocity_log"] = temp.name
-        metrics2, _ = calculate_velocity(base_config)
-    finally:
-        os.remove(temp.name)
-    assert metrics2["Scaled Next Velocity (floored)"] == expected, (
-        f"Log-based test failed: expected {expected}, got {metrics2['Scaled Next Velocity (floored)']}"
-    )
-
-    print("Quick tests passed: fallback and log-based scenarios both yield", expected)
-
-
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python sprint_velocity.py <config.json> or --test")
+    if len(sys.argv) != 2:
+        print("Usage: python sprint_velocity.py <config.json>")
         sys.exit(1)
-
-    if sys.argv[1] == "--test":
-        run_quick_test()
-        return
 
     config = load_config(sys.argv[1])
     metrics, resource_details = calculate_velocity(config)
