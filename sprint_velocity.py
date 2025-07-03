@@ -14,81 +14,99 @@ def load_config(path):
         return json.load(f)
 
 
-def calculate_velocity(config):
+def get_baseline_velocity(config):
     """
-    Calculate the scaled story point velocity and available SP for the next sprint,
-    using a moving average of completed_points from a velocity log when at least
-    `velocity_window` historical sprints are available; otherwise fall back to a
-    single-sprint last_velocity from config.  Also returns a per-resource
-    availability breakdown.
+    Determine the baseline velocity to use:
+    - Use the moving average of the last `velocity_window` completed_points if available.
+    - Otherwise, fall back to the single-sprint last_velocity from config.
+    """
+    window = config.get("velocity_window", 4)
+    path = config.get("velocity_log")
+    if path:
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                entries = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            raise RuntimeError(f"Could not load velocity_log '{path}': {e}")
+        entries = sorted(entries, key=lambda rec: rec.get("sprint", 0))
+        if len(entries) >= window:
+            recent = entries[-window:]
+            return sum(r.get("completed_points", 0) for r in recent) / window
+    return config.get("last_velocity", 0)
 
-    Configuration options:
-      velocity_log: path to JSON file with historical sprint entries
-      velocity_window: number of most recent sprints to average (default: 4)
-      last_velocity: fallback single-sprint velocity if no sufficient log entries
-      carryover_points, sprint_days, resources: as before
+
+def compute_effective_days(resources, sprint_days):
+    """
+    Compute each resource's effective days last and next sprint based on PTO and availability.
 
     Returns:
-      metrics: dict of overall velocity metrics
-      resource_details: list of dicts for each resource's availability breakdown
+      resource_details: list of per-resource availability dicts
+      total_last: sum of all resources' effective days last sprint
+      total_next: sum of all resources' effective days next sprint
     """
-    resources = config["resources"]
-    velocity_window = config.get("velocity_window", 4)
-    velocity_log_path = config.get("velocity_log")
-    if velocity_log_path:
-        try:
-            with open(velocity_log_path, 'r', encoding='utf-8') as f:
-                log_entries = json.load(f)
-        except (OSError, json.JSONDecodeError) as e:
-            raise RuntimeError(f"Could not load velocity_log '{velocity_log_path}': {e}")
-        log_entries = sorted(log_entries, key=lambda rec: rec.get("sprint", 0))
-        if len(log_entries) >= velocity_window:
-            recent = log_entries[-velocity_window:]
-            last_velocity = sum(r.get("completed_points", 0) for r in recent) / velocity_window
-        else:
-            last_velocity = config.get("last_velocity", 0)
-    else:
-        last_velocity = config.get("last_velocity", 0)
-    carryover = config.get("carryover_points", 0)
-    sprint_days = config.get("sprint_days", 10)
-    num_resources = len(resources)
-
     resource_details = []
-    total_eff_days_last = 0.0
-    total_eff_days_next = 0.0
-
+    total_last = total_next = 0.0
     for r in resources:
-        eff_last = (sprint_days - r["last_pto_days"]) * (r["last_pct_avail"] / 100)
-        eff_next = (sprint_days - r["next_pto_days"]) * (r["next_pct_avail"] / 100)
-        total_eff_days_last += eff_last
-        total_eff_days_next += eff_next
+        last_eff = (sprint_days - r["last_pto_days"]) * (r["last_pct_avail"] / 100)
+        next_eff = (sprint_days - r["next_pto_days"]) * (r["next_pct_avail"] / 100)
+        total_last += last_eff
+        total_next += next_eff
         resource_details.append({
             "Name": r.get("name", ""),
             "Last PTO Days": r["last_pto_days"],
             "Last % Avail": r["last_pct_avail"],
-            "Eff Days Last": round(eff_last, 2),
+            "Eff Days Last": round(last_eff, 2),
             "Next PTO Days": r["next_pto_days"],
             "Next % Avail": r["next_pct_avail"],
-            "Eff Days Next": round(eff_next, 2)
+            "Eff Days Next": round(next_eff, 2),
         })
+    return resource_details, total_last, total_next
 
-    if total_eff_days_last <= 0:
+
+def perform_scaling(last_velocity, total_last, total_next):
+    """
+    Scale last_velocity by the ratio of total_next to total_last effective days.
+
+    Returns:
+      raw_scaled: float value before flooring
+      scaled: int(floor(raw_scaled))
+
+    Raises:
+      ValueError: if total_last is zero or negative (cannot scale)
+    """
+    if total_last <= 0:
         raise ValueError("Cannot scale velocity: total effective days last sprint is zero or negative")
-    raw_scaled_next = last_velocity * (total_eff_days_next / total_eff_days_last)
-    scaled_next = math.floor(raw_scaled_next)
+    raw_scaled = last_velocity * (total_next / total_last)
+    return raw_scaled, math.floor(raw_scaled)
 
-    available_sp = max(scaled_next - carryover, 0)
+
+def calculate_velocity(config):
+    """
+    Calculate the next sprint's metrics and per-resource availability breakdown.
+
+    Uses moving average for velocity baseline when enough history exists,
+    otherwise falls back to the last_velocity in config.
+    """
+    sprint_days = config.get("sprint_days", 10)
+    carryover = config.get("carryover_points", 0)
+
+    last_velocity = get_baseline_velocity(config)
+    resource_details, total_last, total_next = compute_effective_days(
+        config["resources"], sprint_days
+    )
+    raw_scaled, scaled = perform_scaling(last_velocity, total_last, total_next)
+    available = max(scaled - carryover, 0)
 
     metrics = {
         "Sprint Days (per resource)": sprint_days,
-        "Number of Resources": num_resources,
-        "Total Effective Days (Last Sprint)": round(total_eff_days_last, 2),
-        "Total Effective Days (Next Sprint)": round(total_eff_days_next, 2),
-        "Full Capacity Days (Baseline)": sprint_days * num_resources,
-        "Raw Scaled Next Velocity": round(raw_scaled_next, 2),
-        "Scaled Next Velocity (floored)": scaled_next,
+        "Number of Resources": len(resource_details),
+        "Total Effective Days (Last Sprint)": round(total_last, 2),
+        "Total Effective Days (Next Sprint)": round(total_next, 2),
+        "Full Capacity Days (Baseline)": sprint_days * len(resource_details),
+        "Raw Scaled Next Velocity": round(raw_scaled, 2),
+        "Scaled Next Velocity (floored)": scaled,
         "Carry-over Story Points": carryover,
-        "Available Story Points for New Work": available_sp
+        "Available Story Points for New Work": available,
     }
 
     return metrics, resource_details
