@@ -10,21 +10,23 @@ def load_config(path):
     """
     Load JSON configuration from the given file path.
     """
-    with open(path, 'r') as f:
+    with open(path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
 def calculate_velocity(config):
     """
     Calculate the scaled story point velocity and available SP for the next sprint,
-    using a moving average of completed_points from a velocity log if configured,
-    and produce a per-resource availability breakdown.
+    using a moving average of completed_points from a velocity log when at least
+    `velocity_window` historical sprints are available; otherwise fall back to a
+    single-sprint last_velocity from config.  Also returns a per-resource
+    availability breakdown.
 
     Configuration options:
       velocity_log: path to JSON file with historical sprint entries
       velocity_window: number of most recent sprints to average (default: 4)
-      last_velocity: fallback single-sprint velocity if no log is provided
-      carryover_points, sprint_days, resources: as in previous versions
+      last_velocity: fallback single-sprint velocity if no sufficient log entries
+      carryover_points, sprint_days, resources: as before
 
     Returns:
       metrics: dict of overall velocity metrics
@@ -34,12 +36,15 @@ def calculate_velocity(config):
     velocity_window = config.get("velocity_window", 4)
     velocity_log_path = config.get("velocity_log")
     if velocity_log_path:
-        with open(velocity_log_path, 'r') as f:
-            log_entries = json.load(f)
+        try:
+            with open(velocity_log_path, 'r', encoding='utf-8') as f:
+                log_entries = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            raise RuntimeError(f"Could not load velocity_log '{velocity_log_path}': {e}")
         log_entries = sorted(log_entries, key=lambda rec: rec.get("sprint", 0))
-        recent = log_entries[-velocity_window:]
-        if recent:
-            last_velocity = sum(r.get("completed_points", 0) for r in recent) / len(recent)
+        if len(log_entries) >= velocity_window:
+            recent = log_entries[-velocity_window:]
+            last_velocity = sum(r.get("completed_points", 0) for r in recent) / velocity_window
         else:
             last_velocity = config.get("last_velocity", 0)
     else:
@@ -52,7 +57,6 @@ def calculate_velocity(config):
     total_eff_days_last = 0.0
     total_eff_days_next = 0.0
 
-    # Compute per-resource effective days
     for r in resources:
         eff_last = (sprint_days - r["last_pto_days"]) * (r["last_pct_avail"] / 100)
         eff_next = (sprint_days - r["next_pto_days"]) * (r["next_pct_avail"] / 100)
@@ -68,11 +72,11 @@ def calculate_velocity(config):
             "Eff Days Next": round(eff_next, 2)
         })
 
-    # Single-step scaling formula
+    if total_eff_days_last <= 0:
+        raise ValueError("Cannot scale velocity: total effective days last sprint is zero or negative")
     raw_scaled_next = last_velocity * (total_eff_days_next / total_eff_days_last)
     scaled_next = math.floor(raw_scaled_next)
 
-    # Subtract carry-over and ensure non-negative
     available_sp = max(scaled_next - carryover, 0)
 
     metrics = {
@@ -116,11 +120,13 @@ def run_quick_test():
     synthetic_log = [{"sprint": i, "completed_points": 10}
                      for i in range(1, base_config.get("velocity_window", 4) + 1)]
     temp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json")
-    json.dump(synthetic_log, temp)
-    temp.close()
-    base_config["velocity_log"] = temp.name
-    metrics2, _ = calculate_velocity(base_config)
-    os.remove(temp.name)
+    try:
+        json.dump(synthetic_log, temp)
+        temp.close()
+        base_config["velocity_log"] = temp.name
+        metrics2, _ = calculate_velocity(base_config)
+    finally:
+        os.remove(temp.name)
     assert metrics2["Scaled Next Velocity (floored)"] == expected, (
         f"Log-based test failed: expected {expected}, got {metrics2['Scaled Next Velocity (floored)']}"
     )
@@ -137,11 +143,9 @@ def main():
         run_quick_test()
         return
 
-    # Load config and calculate
     config = load_config(sys.argv[1])
     metrics, resource_details = calculate_velocity(config)
 
-    # Display with DataFrames
     metrics_df = pd.DataFrame(list(metrics.items()), columns=["Metric", "Value"])
     resources_df = pd.DataFrame(resource_details)
 
