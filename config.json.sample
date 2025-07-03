@@ -1,0 +1,28 @@
+{
+  "sprint_days": 10,
+  "last_velocity": 30,
+  "carryover_points": 5,
+  "resources": [
+    {
+      "name": "Alice",
+      "last_pto_days": 1,
+      "last_pct_avail": 80,
+      "next_pto_days": 2,
+      "next_pct_avail": 90
+    },
+    {
+      "name": "Bob",
+      "last_pto_days": 0,
+      "last_pct_avail": 100,
+      "next_pto_days": 1,
+      "next_pct_avail": 75
+    },
+    {
+      "name": "Carol",
+      "last_pto_days": 2,
+      "last_pct_avail": 90,
+      "next_pto_days": 0,
+      "next_pct_avail": 100
+    }
+  ]
+}
