@@ -1,3 +1,4 @@
 .venv/
 config.json
 velocity-log.json
+__pycache__/

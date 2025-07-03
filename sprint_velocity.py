@@ -2,6 +2,8 @@ import json
 import math
 import sys
 import pandas as pd
+import tempfile
+import os
 
 
 def load_config(path):
@@ -15,14 +17,33 @@ def load_config(path):
 def calculate_velocity(config):
     """
     Calculate the scaled story point velocity and available SP for the next sprint,
-    along with a per-resource breakdown of availability.
+    using a moving average of completed_points from a velocity log if configured,
+    and produce a per-resource availability breakdown.
+
+    Configuration options:
+      velocity_log: path to JSON file with historical sprint entries
+      velocity_window: number of most recent sprints to average (default: 4)
+      last_velocity: fallback single-sprint velocity if no log is provided
+      carryover_points, sprint_days, resources: as in previous versions
 
     Returns:
       metrics: dict of overall velocity metrics
       resource_details: list of dicts for each resource's availability breakdown
     """
     resources = config["resources"]
-    last_velocity = config["last_velocity"]
+    velocity_window = config.get("velocity_window", 4)
+    velocity_log_path = config.get("velocity_log")
+    if velocity_log_path:
+        with open(velocity_log_path, 'r') as f:
+            log_entries = json.load(f)
+        log_entries = sorted(log_entries, key=lambda rec: rec.get("sprint", 0))
+        recent = log_entries[-velocity_window:]
+        if recent:
+            last_velocity = sum(r.get("completed_points", 0) for r in recent) / len(recent)
+        else:
+            last_velocity = config.get("last_velocity", 0)
+    else:
+        last_velocity = config.get("last_velocity", 0)
     carryover = config.get("carryover_points", 0)
     sprint_days = config.get("sprint_days", 10)
     num_resources = len(resources)
@@ -71,9 +92,11 @@ def calculate_velocity(config):
 
 def run_quick_test():
     """
-    Quick verification using example values.
+    Quick verification covering:
+      1) No velocity log (fallback to single-sprint last_velocity)
+      2) An explicit velocity log with default window size
     """
-    test_config = {
+    base_config = {
         "sprint_days": 10,
         "last_velocity": 10,
         "carryover_points": 0,
@@ -83,12 +106,26 @@ def run_quick_test():
             {"name": "C", "last_pto_days": 2, "last_pct_avail": 100, "next_pto_days": 4, "next_pct_avail": 100}
         ]
     }
-    metrics, _ = calculate_velocity(test_config)
+
+    metrics1, _ = calculate_velocity(base_config)
     expected = 8
-    assert metrics["Scaled Next Velocity (floored)"] == expected, (
-        f"Test failed: expected {expected}, got {metrics['Scaled Next Velocity (floored)']}"
+    assert metrics1["Scaled Next Velocity (floored)"] == expected, (
+        f"Fallback test failed: expected {expected}, got {metrics1['Scaled Next Velocity (floored)']}"
     )
-    print("Quick test passed: Scaled Next Velocity =", metrics["Scaled Next Velocity (floored)"])
+
+    synthetic_log = [{"sprint": i, "completed_points": 10}
+                     for i in range(1, base_config.get("velocity_window", 4) + 1)]
+    temp = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json")
+    json.dump(synthetic_log, temp)
+    temp.close()
+    base_config["velocity_log"] = temp.name
+    metrics2, _ = calculate_velocity(base_config)
+    os.remove(temp.name)
+    assert metrics2["Scaled Next Velocity (floored)"] == expected, (
+        f"Log-based test failed: expected {expected}, got {metrics2['Scaled Next Velocity (floored)']}"
+    )
+
+    print("Quick tests passed: fallback and log-based scenarios both yield", expected)
 
 
 def main():

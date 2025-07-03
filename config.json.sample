@@ -2,6 +2,8 @@
   "sprint_days": 10,
   "last_velocity": 30,
   "carryover_points": 5,
+  "velocity_log": "velocity-log.json",
+  "velocity_window": 4,
   "resources": [
     {
       "name": "Alice",
