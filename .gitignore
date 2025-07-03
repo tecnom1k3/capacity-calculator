@@ -2,3 +2,5 @@
 config.json
 velocity-log.json
 __pycache__/
+.pytest_cache/
+*.pyc
