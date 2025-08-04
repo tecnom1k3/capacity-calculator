@@ -75,9 +75,9 @@ Available Story Points for New Work  36.00
 Resource Availability Breakdown:
 
    Name  Last PTO Days  Last % Avail  Eff Days Last  Next PTO Days  Next % Avail  Eff Days Next
-Matthew              2            80            6.4              0           100           10.0
-Aswin                0           100           10.0              0           100           10.0
-Angel                1           100            9.0              0           100           10.0
+Member1              2            80            6.4              0           100           10.0
+Member2              0           100           10.0              0           100           10.0
+Member3              1           100            9.0              0           100           10.0
 ```
 
 ## Testing
