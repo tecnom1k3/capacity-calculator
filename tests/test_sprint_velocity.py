@@ -111,6 +111,42 @@ def test_compute_effective_days_percentage_out_of_range():
         sv.compute_effective_days(resources, 10)
 
 
+def test_compute_effective_days_pto_exceeds_sprint_days_last():
+    resources = [{
+        "name": "TooMuch",
+        "last_pto_days": 11,
+        "last_pct_avail": 100,
+        "next_pto_days": 0,
+        "next_pct_avail": 100,
+    }]
+    with pytest.raises(ValueError):
+        sv.compute_effective_days(resources, 10)
+
+
+def test_compute_effective_days_pto_exceeds_sprint_days_next():
+    resources = [{
+        "name": "TooMuch",
+        "last_pto_days": 0,
+        "last_pct_avail": 100,
+        "next_pto_days": 11,
+        "next_pct_avail": 100,
+    }]
+    with pytest.raises(ValueError):
+        sv.compute_effective_days(resources, 10)
+
+
+def test_compute_effective_days_non_numeric():
+    resources = [{
+        "name": "Invalid",
+        "last_pto_days": "five",
+        "last_pct_avail": 100,
+        "next_pto_days": 0,
+        "next_pct_avail": 100,
+    }]
+    with pytest.raises(ValueError):
+        sv.compute_effective_days(resources, 10)
+
+
 def test_perform_scaling_normal_cases():
     raw, scaled = sv.perform_scaling(10, 5, 10)
     assert raw == pytest.approx(20.0)

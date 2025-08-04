@@ -78,6 +78,15 @@ def compute_effective_days(resources, sprint_days):
                     f"Resource '{name}' field '{field}' must be between 0 and 100"
                 )
 
+        if last_pto > sprint_days:
+            raise ValueError(
+                f"Resource '{name}' last_pto_days ({last_pto}) exceeds sprint days ({sprint_days})"
+            )
+        if next_pto > sprint_days:
+            raise ValueError(
+                f"Resource '{name}' next_pto_days ({next_pto}) exceeds sprint days ({sprint_days})"
+            )
+
         last_eff = (sprint_days - last_pto) * (last_pct / 100)
         next_eff = (sprint_days - next_pto) * (next_pct / 100)
         total_last += last_eff
