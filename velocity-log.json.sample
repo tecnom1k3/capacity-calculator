@@ -1,34 +1,34 @@
 [
     {
-        "sprint": 1,
-        "commited_points": 10,
-        "completed_points": 35,
-        "carryover_points": 6,
-        "actual_dev_days": 27,
-        "notes": "planned velocity for this sprint was arbitrary"
+        "sprint": 101,
+        "committed_points": 8,
+        "completed_points": 20,
+        "carryover_points": 0,
+        "actual_dev_days": 12.5,
+        "notes": "mock data only"
     },
     {
-        "sprint": 2,
-        "commited_points": 31,
-        "completed_points": 13,
-        "carryover_points": 15,
-        "actual_dev_days": 19.3,
-        "notes": "many sickdays, unplanned holidays"
+        "sprint": 102,
+        "committed_points": 18,
+        "completed_points": 15,
+        "carryover_points": 3,
+        "actual_dev_days": 15,
+        "notes": "sample note"
     },
     {
-        "sprint": 3,
-        "commited_points": 12,
-        "completed_points": 46,
+        "sprint": 103,
+        "committed_points": 22,
+        "completed_points": 18,
         "carryover_points": 2,
-        "actual_dev_days": 27.1,
-        "notes": ""
+        "actual_dev_days": 17.5,
+        "notes": "placeholder values"
     },
     {
-        "sprint": 4,
-        "commited_points": 43,
-        "completed_points": 51,
-        "carryover_points": 6,
-        "actual_dev_days": 25.4,
-        "notes": "Mathew was involved in monitoring BrainTree"
+        "sprint": 104,
+        "committed_points": 25,
+        "completed_points": 30,
+        "carryover_points": 1,
+        "actual_dev_days": 18.25,
+        "notes": "for demonstration only"
     }
 ]
