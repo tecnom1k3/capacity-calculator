@@ -1,6 +1,9 @@
 import argparse
 import json
 import math
+import os
+from pathlib import Path
+
 import pandas as pd
 
 
@@ -183,8 +186,20 @@ def main():
     resources_df = pd.DataFrame(resource_details)
 
     if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
-            json.dump({"metrics": metrics, "resource_details": resource_details}, f, indent=2)
+        output_path = Path(args.output)
+        tmp_path = output_path.with_suffix(".tmp")
+        try:
+            with tmp_path.open("w", encoding="utf-8") as f:
+                json.dump(
+                    {"metrics": metrics, "resource_details": resource_details},
+                    f,
+                    indent=2,
+                )
+            os.replace(tmp_path, output_path)
+        except Exception:
+            if tmp_path.exists():
+                tmp_path.unlink()
+            raise
 
     print("\nSprint Velocity Calculation Breakdown:\n")
     print(metrics_df.to_string(index=False))
