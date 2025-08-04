@@ -44,18 +44,51 @@ def compute_effective_days(resources, sprint_days):
     """
     resource_details = []
     total_last = total_next = 0.0
-    for r in resources:
-        last_eff = (sprint_days - r["last_pto_days"]) * (r["last_pct_avail"] / 100)
-        next_eff = (sprint_days - r["next_pto_days"]) * (r["next_pct_avail"] / 100)
+    required = ["last_pto_days", "last_pct_avail", "next_pto_days", "next_pct_avail"]
+    for idx, r in enumerate(resources):
+        name = r.get("name", f"resource_{idx}")
+
+        for key in required:
+            if key not in r:
+                raise ValueError(f"Resource '{name}' is missing required field '{key}'")
+
+        last_pto = r["last_pto_days"]
+        last_pct = r["last_pct_avail"]
+        next_pto = r["next_pto_days"]
+        next_pct = r["next_pct_avail"]
+
+        fields = [
+            ("last_pto_days", last_pto, False),
+            ("last_pct_avail", last_pct, True),
+            ("next_pto_days", next_pto, False),
+            ("next_pct_avail", next_pct, True),
+        ]
+
+        for field, value, is_pct in fields:
+            if not isinstance(value, (int, float)):
+                raise ValueError(
+                    f"Resource '{name}' field '{field}' must be a number"
+                )
+            if value < 0:
+                raise ValueError(
+                    f"Resource '{name}' field '{field}' cannot be negative"
+                )
+            if is_pct and value > 100:
+                raise ValueError(
+                    f"Resource '{name}' field '{field}' must be between 0 and 100"
+                )
+
+        last_eff = (sprint_days - last_pto) * (last_pct / 100)
+        next_eff = (sprint_days - next_pto) * (next_pct / 100)
         total_last += last_eff
         total_next += next_eff
         resource_details.append({
-            "Name": r.get("name", ""),
-            "Last PTO Days": r["last_pto_days"],
-            "Last % Avail": r["last_pct_avail"],
+            "Name": name,
+            "Last PTO Days": last_pto,
+            "Last % Avail": last_pct,
             "Eff Days Last": round(last_eff, 2),
-            "Next PTO Days": r["next_pto_days"],
-            "Next % Avail": r["next_pct_avail"],
+            "Next PTO Days": next_pto,
+            "Next % Avail": next_pct,
             "Eff Days Next": round(next_eff, 2),
         })
     return resource_details, total_last, total_next
