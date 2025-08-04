@@ -2,7 +2,7 @@
   "sprint_days": 7,
   "last_velocity": 21,
   "carryover_points": 2,
-  "velocity_log": "mock-velocity-log.json",
+  "velocity_log": "velocity-log.json",
   "velocity_window": 3,
   "resources": [
     {
