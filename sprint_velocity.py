@@ -1,6 +1,6 @@
+import argparse
 import json
 import math
-import sys
 import pandas as pd
 
 
@@ -110,16 +110,39 @@ def calculate_velocity(config):
     return metrics, resource_details
 
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python sprint_velocity.py <config.json>")
-        sys.exit(1)
+__version__ = "1.0.0"
 
-    config = load_config(sys.argv[1])
+
+def build_parser():
+    """Create and return the command-line argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Calculate next sprint velocity from a configuration file"
+    )
+    parser.add_argument("config", help="Path to configuration JSON file")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Optional path to write results as JSON",
+    )
+    return parser
+
+
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+
+    config = load_config(args.config)
     metrics, resource_details = calculate_velocity(config)
 
     metrics_df = pd.DataFrame(list(metrics.items()), columns=["Metric", "Value"])
     resources_df = pd.DataFrame(resource_details)
+
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump({"metrics": metrics, "resource_details": resource_details}, f, indent=2)
 
     print("\nSprint Velocity Calculation Breakdown:\n")
     print(metrics_df.to_string(index=False))
