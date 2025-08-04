@@ -1,7 +1,7 @@
 [
     {
         "sprint": 1,
-        "commited_points": 10,
+        "committed_points": 10,
         "completed_points": 35,
         "carryover_points": 6,
         "actual_dev_days": 27,
@@ -9,7 +9,7 @@
     },
     {
         "sprint": 2,
-        "commited_points": 31,
+        "committed_points": 31,
         "completed_points": 13,
         "carryover_points": 15,
         "actual_dev_days": 19.3,
@@ -17,7 +17,7 @@
     },
     {
         "sprint": 3,
-        "commited_points": 12,
+        "committed_points": 12,
         "completed_points": 46,
         "carryover_points": 2,
         "actual_dev_days": 27.1,
@@ -25,7 +25,7 @@
     },
     {
         "sprint": 4,
-        "commited_points": 43,
+        "committed_points": 43,
         "completed_points": 51,
         "carryover_points": 6,
         "actual_dev_days": 25.4,
