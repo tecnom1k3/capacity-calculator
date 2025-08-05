@@ -182,20 +182,33 @@ def build_parser():
     return parser
 
 
-def write_output_json(output_path, metrics, resource_details):
+def write_output_json(output_path, metrics, resource_details, *, force=False):
     """Safely write metrics and resource details to ``output_path``.
 
     The data is first written to a sibling temporary file which is then
-    atomically moved into place. Temporary files are cleaned up on any
-    exception.
+    atomically moved into place. When ``force`` is ``False`` an atomic
+    existence check is performed so that an existing file is never
+    clobbered inadvertently.
 
     Raises:
-        OSError: If there is an error writing to ``output_path``.
+        OSError: If there is an error writing to ``output_path`` or the file
+            already exists when ``force`` is False.
         RuntimeError: If there is an error serializing the data.
     """
     output_path = Path(output_path)
     tmp_path = output_path.with_suffix(f".tmp.{os.getpid()}")
+    placeholder_created = False
+    replaced = False
     try:
+        if not force:
+            try:
+                fd = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            except FileExistsError as e:
+                raise OSError(f"Output file '{output_path}' already exists") from e
+            else:
+                os.close(fd)
+                placeholder_created = True
+
         with tmp_path.open("w", encoding="utf-8") as f:
             json.dump(
                 {"metrics": metrics, "resource_details": resource_details},
@@ -203,12 +216,18 @@ def write_output_json(output_path, metrics, resource_details):
                 indent=2,
             )
         os.replace(tmp_path, output_path)
+        replaced = True
     except (TypeError, ValueError) as e:
         raise RuntimeError(f"Data serialization error: {e}") from e
     finally:
         if tmp_path.exists():
             try:
                 tmp_path.unlink()
+            except OSError as cleanup_err:
+                print(f"Cleanup failed: {cleanup_err}", file=sys.stderr)
+        if placeholder_created and not replaced and output_path.exists():
+            try:
+                output_path.unlink()
             except OSError as cleanup_err:
                 print(f"Cleanup failed: {cleanup_err}", file=sys.stderr)
 
@@ -225,15 +244,17 @@ def main():
 
     if args.output:
         output_path = Path(args.output)
-        if output_path.exists() and not args.force:
-            print(
-                f"Error: output file '{output_path}' already exists. Use --force to overwrite.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        if output_path.exists():
+            if not args.force:
+                print(
+                    f"Error: output file '{output_path}' already exists. Use --force to overwrite.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            print(f"Warning: Overwriting existing file '{output_path}'", file=sys.stderr)
         try:
-            write_output_json(output_path, metrics, resource_details)
-        except OSError as e:
+            write_output_json(output_path, metrics, resource_details, force=args.force)
+        except (OSError, RuntimeError) as e:
             print(f"Error writing output file: {e}", file=sys.stderr)
             sys.exit(1)
 
