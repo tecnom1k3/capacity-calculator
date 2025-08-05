@@ -3,7 +3,7 @@ import json
 import math
 import pandas as pd
 
-
+from version import __version__
 def load_config(path):
     """
     Load JSON configuration from the given file path.
@@ -150,9 +150,6 @@ def calculate_velocity(config):
     }
 
     return metrics, resource_details
-
-
-__version__ = "1.0.0"
 
 
 def build_parser():

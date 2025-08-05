@@ -4,6 +4,7 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from version import __version__
 import sprint_velocity as sv
 
 
@@ -212,7 +213,8 @@ def test_main_version_flag(monkeypatch, capsys):
         sv.main()
     assert exc.value.code == 0
     captured = capsys.readouterr()
-    assert sv.__version__ in captured.out
+    assert __version__ in captured.out
+    assert sv.__version__ == __version__
 
 
 def test_main_output_flag(monkeypatch, tmp_path):
