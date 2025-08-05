@@ -7,6 +7,10 @@ from pathlib import Path
 
 import pandas as pd
 
+try:
+    from version import __version__
+except ImportError:  # pragma: no cover - fallback for missing module
+    __version__ = "0.0.0-dev"
 
 def load_config(path):
     """
@@ -154,9 +158,6 @@ def calculate_velocity(config):
     }
 
     return metrics, resource_details
-
-
-__version__ = "1.0.0"
 
 
 def build_parser():
