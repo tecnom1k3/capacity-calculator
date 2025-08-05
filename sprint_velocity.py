@@ -174,6 +174,11 @@ def build_parser():
         "--output",
         help="Optional path to write results as JSON",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing output file if it exists",
+    )
     return parser
 
 
@@ -185,8 +190,8 @@ def write_output_json(output_path, metrics, resource_details):
     exception.
 
     Raises:
-        RuntimeError: If there is an error writing to ``output_path`` or
-            serializing the data.
+        OSError: If there is an error writing to ``output_path``.
+        RuntimeError: If there is an error serializing the data.
     """
     output_path = Path(output_path)
     tmp_path = output_path.with_suffix(f".tmp.{os.getpid()}")
@@ -198,8 +203,6 @@ def write_output_json(output_path, metrics, resource_details):
                 indent=2,
             )
         os.replace(tmp_path, output_path)
-    except OSError as e:
-        raise RuntimeError(f"Output write failed: {e}") from e
     except (TypeError, ValueError) as e:
         raise RuntimeError(f"Data serialization error: {e}") from e
     finally:
@@ -221,7 +224,18 @@ def main():
     resources_df = pd.DataFrame(resource_details)
 
     if args.output:
-        write_output_json(args.output, metrics, resource_details)
+        output_path = Path(args.output)
+        if output_path.exists() and not args.force:
+            print(
+                f"Error: output file '{output_path}' already exists. Use --force to overwrite.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            write_output_json(output_path, metrics, resource_details)
+        except OSError as e:
+            print(f"Error writing output file: {e}", file=sys.stderr)
+            sys.exit(1)
 
     print("\nSprint Velocity Calculation Breakdown:\n")
     print(metrics_df.to_string(index=False))

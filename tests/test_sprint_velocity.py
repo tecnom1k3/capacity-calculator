@@ -237,3 +237,67 @@ def test_main_output_flag(monkeypatch, tmp_path):
     assert output_path.exists()
     data = json.loads(output_path.read_text())
     assert "metrics" in data and "resource_details" in data
+
+
+def test_main_output_exists_without_force(monkeypatch, tmp_path):
+    config = {
+        "sprint_days": 5,
+        "last_velocity": 100,
+        "carryover_points": 0,
+        "resources": [
+            {
+                "name": "A",
+                "last_pto_days": 0,
+                "last_pct_avail": 100,
+                "next_pto_days": 0,
+                "next_pct_avail": 100,
+            }
+        ],
+    }
+    cfg_path = tmp_path / "cfg.json"
+    cfg_path.write_text(json.dumps(config))
+    output_path = tmp_path / "out.json"
+    output_path.write_text("existing")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["sprint_velocity.py", str(cfg_path), "--output", str(output_path)],
+    )
+    with pytest.raises(SystemExit) as exc:
+        sv.main()
+    assert exc.value.code == 1
+
+
+def test_main_output_exists_with_force(monkeypatch, tmp_path):
+    config = {
+        "sprint_days": 5,
+        "last_velocity": 100,
+        "carryover_points": 0,
+        "resources": [
+            {
+                "name": "A",
+                "last_pto_days": 0,
+                "last_pct_avail": 100,
+                "next_pto_days": 0,
+                "next_pct_avail": 100,
+            }
+        ],
+    }
+    cfg_path = tmp_path / "cfg.json"
+    cfg_path.write_text(json.dumps(config))
+    output_path = tmp_path / "out.json"
+    output_path.write_text("existing")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "sprint_velocity.py",
+            str(cfg_path),
+            "--output",
+            str(output_path),
+            "--force",
+        ],
+    )
+    sv.main()
+    data = json.loads(output_path.read_text())
+    assert "metrics" in data and "resource_details" in data
