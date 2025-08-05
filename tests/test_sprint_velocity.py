@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -237,3 +238,144 @@ def test_main_output_flag(monkeypatch, tmp_path):
     assert output_path.exists()
     data = json.loads(output_path.read_text())
     assert "metrics" in data and "resource_details" in data
+
+
+def test_main_output_exists_without_force(monkeypatch, tmp_path):
+    config = {
+        "sprint_days": 5,
+        "last_velocity": 100,
+        "carryover_points": 0,
+        "resources": [
+            {
+                "name": "A",
+                "last_pto_days": 0,
+                "last_pct_avail": 100,
+                "next_pto_days": 0,
+                "next_pct_avail": 100,
+            }
+        ],
+    }
+    cfg_path = tmp_path / "cfg.json"
+    cfg_path.write_text(json.dumps(config))
+    output_path = tmp_path / "out.json"
+    output_path.write_text("existing")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["sprint_velocity.py", str(cfg_path), "--output", str(output_path)],
+    )
+    with pytest.raises(SystemExit) as exc:
+        sv.main()
+    assert exc.value.code == 1
+
+
+def test_main_output_exists_with_force(monkeypatch, tmp_path, capsys):
+    config = {
+        "sprint_days": 5,
+        "last_velocity": 100,
+        "carryover_points": 0,
+        "resources": [
+            {
+                "name": "A",
+                "last_pto_days": 0,
+                "last_pct_avail": 100,
+                "next_pto_days": 0,
+                "next_pct_avail": 100,
+            }
+        ],
+    }
+    cfg_path = tmp_path / "cfg.json"
+    cfg_path.write_text(json.dumps(config))
+    output_path = tmp_path / "out.json"
+    output_path.write_text("existing")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "sprint_velocity.py",
+            str(cfg_path),
+            "--output",
+            str(output_path),
+            "--force",
+        ],
+    )
+    sv.main()
+    data = json.loads(output_path.read_text())
+    assert "metrics" in data and "resource_details" in data
+    captured = capsys.readouterr()
+    assert "Warning: Overwriting" in captured.err
+
+
+def test_write_output_json_serialization_error(tmp_path):
+    output_path = tmp_path / "out.json"
+    with pytest.raises(RuntimeError):
+        sv.write_output_json(output_path, {"bad": set()}, [], force=False)
+
+
+def test_main_concurrent_file_creation(monkeypatch, tmp_path):
+    config = {
+        "sprint_days": 5,
+        "last_velocity": 100,
+        "carryover_points": 0,
+        "resources": [
+            {
+                "name": "A",
+                "last_pto_days": 0,
+                "last_pct_avail": 100,
+                "next_pto_days": 0,
+                "next_pct_avail": 100,
+            }
+        ],
+    }
+    cfg_path = tmp_path / "cfg.json"
+    cfg_path.write_text(json.dumps(config))
+    output_path = tmp_path / "out.json"
+
+    original_write = sv.write_output_json
+
+    def race_write(path, metrics, resource_details, *, force=False):
+        # Create the file just before the actual write to simulate a race
+        Path(path).write_text("existing")
+        return original_write(path, metrics, resource_details, force=force)
+
+    monkeypatch.setattr(sv, "write_output_json", race_write)
+    monkeypatch.setattr(
+        sys, "argv", ["sprint_velocity.py", str(cfg_path), "--output", str(output_path)]
+    )
+    with pytest.raises(SystemExit) as exc:
+        sv.main()
+    assert exc.value.code == 1
+
+
+def test_main_serialization_error(monkeypatch, tmp_path):
+    config = {
+        "sprint_days": 5,
+        "last_velocity": 100,
+        "carryover_points": 0,
+        "resources": [
+            {
+                "name": "A",
+                "last_pto_days": 0,
+                "last_pct_avail": 100,
+                "next_pto_days": 0,
+                "next_pct_avail": 100,
+            }
+        ],
+    }
+    cfg_path = tmp_path / "cfg.json"
+    cfg_path.write_text(json.dumps(config))
+    output_path = tmp_path / "out.json"
+
+    def bad_dump(*args, **kwargs):
+        raise TypeError("bad serialize")
+
+    monkeypatch.setattr(sv.json, "dump", bad_dump)
+    monkeypatch.setattr(
+        sys, "argv", [
+            "sprint_velocity.py", str(cfg_path), "--output", str(output_path), "--force"
+        ]
+    )
+    with pytest.raises(SystemExit) as exc:
+        sv.main()
+    assert exc.value.code == 1
+
