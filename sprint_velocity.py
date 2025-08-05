@@ -2,6 +2,7 @@ import argparse
 import json
 import math
 import os
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -175,6 +176,39 @@ def build_parser():
     return parser
 
 
+def write_output_json(output_path, metrics, resource_details):
+    """Safely write metrics and resource details to ``output_path``.
+
+    The data is first written to a sibling temporary file which is then
+    atomically moved into place. Temporary files are cleaned up on any
+    exception.
+
+    Raises:
+        RuntimeError: If there is an error writing to ``output_path`` or
+            serializing the data.
+    """
+    output_path = Path(output_path)
+    tmp_path = output_path.with_suffix(f".tmp.{os.getpid()}")
+    try:
+        with tmp_path.open("w", encoding="utf-8") as f:
+            json.dump(
+                {"metrics": metrics, "resource_details": resource_details},
+                f,
+                indent=2,
+            )
+        os.replace(tmp_path, output_path)
+    except OSError as e:
+        raise RuntimeError(f"Output write failed: {e}") from e
+    except (TypeError, ValueError) as e:
+        raise RuntimeError(f"Data serialization error: {e}") from e
+    finally:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError as cleanup_err:
+                print(f"Cleanup failed: {cleanup_err}", file=sys.stderr)
+
+
 def main():
     parser = build_parser()
     args = parser.parse_args()
@@ -186,20 +220,7 @@ def main():
     resources_df = pd.DataFrame(resource_details)
 
     if args.output:
-        output_path = Path(args.output)
-        tmp_path = output_path.with_suffix(".tmp")
-        try:
-            with tmp_path.open("w", encoding="utf-8") as f:
-                json.dump(
-                    {"metrics": metrics, "resource_details": resource_details},
-                    f,
-                    indent=2,
-                )
-            os.replace(tmp_path, output_path)
-        except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink()
-            raise
+        write_output_json(args.output, metrics, resource_details)
 
     print("\nSprint Velocity Calculation Breakdown:\n")
     print(metrics_df.to_string(index=False))
