@@ -1,6 +1,8 @@
 import argparse
 import json
 import math
+import os
+import sys
 import pandas as pd
 
 
@@ -169,6 +171,11 @@ def build_parser():
         "--output",
         help="Optional path to write results as JSON",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing output file if it exists",
+    )
     return parser
 
 
@@ -183,8 +190,32 @@ def main():
     resources_df = pd.DataFrame(resource_details)
 
     if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
-            json.dump({"metrics": metrics, "resource_details": resource_details}, f, indent=2)
+        output_path = os.path.abspath(args.output)
+        if os.path.isdir(output_path):
+            print(
+                f"Error: Output path '{output_path}' is a directory.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        flags = os.O_WRONLY | os.O_CREAT
+        flags |= os.O_TRUNC if args.force else os.O_EXCL
+        try:
+            with os.fdopen(os.open(output_path, flags, 0o666), "w", encoding="utf-8") as f:
+                json.dump(
+                    {"metrics": metrics, "resource_details": resource_details}, f, indent=2
+                )
+        except FileExistsError:
+            print(
+                f"Error: Output file '{output_path}' already exists. Use --force to overwrite.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+        except PermissionError as e:
+            print(f"Permission denied: {e}", file=sys.stderr)
+            raise SystemExit(2)
+        except OSError as e:
+            print(f"Error writing to '{output_path}': {e}", file=sys.stderr)
+            raise SystemExit(1)
 
     print("\nSprint Velocity Calculation Breakdown:\n")
     print(metrics_df.to_string(index=False))
