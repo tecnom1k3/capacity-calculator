@@ -3,7 +3,11 @@ import json
 import math
 import pandas as pd
 
-from version import __version__
+try:
+    from version import __version__
+except ImportError:  # pragma: no cover - fallback for missing module
+    __version__ = "0.0.0-dev"
+
 def load_config(path):
     """
     Load JSON configuration from the given file path.

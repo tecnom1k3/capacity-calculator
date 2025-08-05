@@ -1,11 +1,12 @@
 import json
 import os
 import sys
+
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from version import __version__
 import sprint_velocity as sv
+from version import __version__
 
 
 def test_load_config(tmp_path):
@@ -213,8 +214,7 @@ def test_main_version_flag(monkeypatch, capsys):
         sv.main()
     assert exc.value.code == 0
     captured = capsys.readouterr()
-    assert __version__ in captured.out
-    assert sv.__version__ == __version__
+    assert captured.out.strip() == f"sprint_velocity.py {__version__}"
 
 
 def test_main_output_flag(monkeypatch, tmp_path):
