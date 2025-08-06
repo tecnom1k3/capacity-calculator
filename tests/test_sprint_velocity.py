@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-import sprint_velocity as sv
-from version import __version__
+import sprint_velocity as sv  # noqa: E402
+from version import __version__  # noqa: E402
 
 
 def test_load_config(tmp_path):
@@ -378,4 +378,3 @@ def test_main_serialization_error(monkeypatch, tmp_path):
     with pytest.raises(SystemExit) as exc:
         sv.main()
     assert exc.value.code == 1
-
