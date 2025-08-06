@@ -12,6 +12,7 @@ try:
 except ImportError:  # pragma: no cover - fallback for missing module
     __version__ = "0.0.0-dev"
 
+
 def load_config(path):
     """
     Load JSON configuration from the given file path.
@@ -123,7 +124,9 @@ def perform_scaling(last_velocity, total_last, total_next):
       ValueError: if total_last is zero or negative (cannot scale)
     """
     if total_last <= 0:
-        raise ValueError("Cannot scale velocity: total effective days last sprint is zero or negative")
+        raise ValueError(
+            "Cannot scale velocity: total effective days last sprint is zero or negative"
+        )
     raw_scaled = last_velocity * (total_next / total_last)
     return raw_scaled, math.floor(raw_scaled)
 

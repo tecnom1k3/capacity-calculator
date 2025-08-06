@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from sprint_velocity import write_output_json
+from sprint_velocity import write_output_json  # noqa: E402
 
 
 def test_cli_output(tmp_path):

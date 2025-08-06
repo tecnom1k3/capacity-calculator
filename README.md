@@ -13,6 +13,8 @@ A simple CLI tool to project and scale sprint velocity based on team availabilit
 
 - Python 3.7 or newer
 - pandas
+- pytest
+- flake8
 
 ## Installation
 
@@ -82,10 +84,11 @@ Member3              1           100            9.0              0           100
 
 ## Testing
 
-Unit tests are implemented with pytest:
+Run both linting and unit tests to verify changes before committing:
 
 ```bash
-python -m pytest
+flake8
+pytest
 ```
 
 ## License
