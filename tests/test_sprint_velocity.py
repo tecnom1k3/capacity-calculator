@@ -1,6 +1,10 @@
 import json
 import os
+import pwd
+import shutil
 import sys
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -240,7 +244,7 @@ def test_main_output_flag(monkeypatch, tmp_path):
     assert "metrics" in data and "resources" in data
 
 
-def test_main_output_exists_without_force(monkeypatch, tmp_path):
+def test_main_output_exists_without_force(monkeypatch, tmp_path, capsys):
     config = {
         "sprint_days": 5,
         "last_velocity": 100,
@@ -267,6 +271,10 @@ def test_main_output_exists_without_force(monkeypatch, tmp_path):
     with pytest.raises(SystemExit) as exc:
         sv.main()
     assert exc.value.code == 1
+    captured = capsys.readouterr()
+    assert (
+        f"output file '{output_path}' already exists" in captured.err
+    )
 
 
 def test_main_output_exists_with_force(monkeypatch, tmp_path, capsys):
@@ -305,6 +313,102 @@ def test_main_output_exists_with_force(monkeypatch, tmp_path, capsys):
     captured = capsys.readouterr()
     assert "Warning: Overwriting" in captured.err
 
+
+def test_main_output_missing_directory(monkeypatch, tmp_path, capsys):
+    config = {
+        "sprint_days": 5,
+        "last_velocity": 100,
+        "carryover_points": 0,
+        "resources": [
+            {
+                "name": "A",
+                "last_pto_days": 0,
+                "last_pct_avail": 100,
+                "next_pto_days": 0,
+                "next_pct_avail": 100,
+            }
+        ],
+    }
+    cfg_path = tmp_path / "cfg.json"
+    cfg_path.write_text(json.dumps(config))
+    output_path = tmp_path / "missing_dir" / "out.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["sprint_velocity.py", str(cfg_path), "--output", str(output_path)],
+    )
+    with pytest.raises(SystemExit) as exc:
+        sv.main()
+    assert exc.value.code == 1
+    captured = capsys.readouterr()
+    assert "Error writing output file" in captured.err
+    with pytest.raises(FileNotFoundError):
+        sv.write_output_json(output_path, {}, [], force=False)
+
+
+def test_main_output_permission_denied(monkeypatch, capsys):
+    if os.geteuid() != 0:
+        pytest.skip("requires root privileges to adjust user IDs")
+
+    config = {
+        "sprint_days": 5,
+        "last_velocity": 100,
+        "carryover_points": 0,
+        "resources": [
+            {
+                "name": "A",
+                "last_pto_days": 0,
+                "last_pct_avail": 100,
+                "next_pto_days": 0,
+                "next_pct_avail": 100,
+            }
+        ],
+    }
+
+    work_dir = Path(tempfile.mkdtemp())
+    restricted_dir = None
+    try:
+        work_dir.chmod(0o755)
+        cfg_path = work_dir / "cfg.json"
+        cfg_path.write_text(json.dumps(config))
+        restricted_dir = work_dir / "restricted"
+        restricted_dir.mkdir()
+        restricted_dir.chmod(0o555)
+        output_path = restricted_dir / "out.json"
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["sprint_velocity.py", str(cfg_path), "--output", str(output_path)],
+        )
+
+        try:
+            nobody_uid = pwd.getpwnam("nobody").pw_uid
+        except KeyError:
+            pytest.skip("nobody user not found")
+
+        @contextmanager
+        def switch_euid(uid):
+            original_uid = os.geteuid()
+            os.seteuid(uid)
+            try:
+                yield
+            finally:
+                os.seteuid(original_uid)
+
+        with switch_euid(nobody_uid):
+            with pytest.raises(SystemExit) as exc:
+                sv.main()
+            assert exc.value.code == 1
+            captured = capsys.readouterr()
+            assert "Error writing output file" in captured.err
+            assert "Permission denied" in captured.err
+    finally:
+        if restricted_dir is not None:
+            try:
+                restricted_dir.chmod(0o700)
+            except Exception:
+                pass
+        shutil.rmtree(work_dir)
 
 def test_write_output_json_serialization_error(tmp_path):
     output_path = tmp_path / "out.json"
