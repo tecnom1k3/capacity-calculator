@@ -171,9 +171,12 @@ def build_parser():
         Calculate next sprint velocity from a configuration file.
 
         Examples:
-          python sprint_velocity.py config.json
-          python sprint_velocity.py config.json --output results.json
-          python sprint_velocity.py config.json --output results.json --force
+          Basic run:
+            python sprint_velocity.py config.json
+          Save results to a file:
+            python sprint_velocity.py config.json --output results.json
+          Force overwrite the results file:
+            python sprint_velocity.py config.json --output results.json --force
         """
     )
     parser = argparse.ArgumentParser(
