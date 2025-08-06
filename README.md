@@ -84,11 +84,11 @@ Member3              1           100            9.0              0           100
 
 ## Testing
 
-Unit tests are implemented with pytest, and flake8 is used for linting:
+Run both linting and unit tests to verify changes before committing:
 
 ```bash
-python -m pytest
 flake8
+pytest
 ```
 
 ## License
