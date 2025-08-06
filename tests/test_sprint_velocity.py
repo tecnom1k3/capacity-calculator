@@ -1,6 +1,10 @@
 import json
 import os
+import pwd
+import shutil
 import sys
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -268,7 +272,9 @@ def test_main_output_exists_without_force(monkeypatch, tmp_path, capsys):
         sv.main()
     assert exc.value.code == 1
     captured = capsys.readouterr()
-    assert "already exists" in captured.err
+    assert (
+        f"output file '{output_path}' already exists" in captured.err
+    )
 
 
 def test_main_output_exists_with_force(monkeypatch, tmp_path, capsys):
@@ -325,7 +331,7 @@ def test_main_output_missing_directory(monkeypatch, tmp_path, capsys):
     }
     cfg_path = tmp_path / "cfg.json"
     cfg_path.write_text(json.dumps(config))
-    output_path = tmp_path / "missing" / "out.json"
+    output_path = tmp_path / "missing_dir" / "out.json"
     monkeypatch.setattr(
         sys,
         "argv",
@@ -336,12 +342,14 @@ def test_main_output_missing_directory(monkeypatch, tmp_path, capsys):
     assert exc.value.code == 1
     captured = capsys.readouterr()
     assert "Error writing output file" in captured.err
-    assert "No such file or directory" in captured.err
+    with pytest.raises(FileNotFoundError):
+        sv.write_output_json(output_path, {}, [], force=False)
 
 
-def test_main_output_permission_denied(monkeypatch, tmp_path, capsys):
+def test_main_output_permission_denied(monkeypatch, capsys):
     if os.geteuid() != 0:
         pytest.skip("requires root privileges to adjust user IDs")
+
     config = {
         "sprint_days": 5,
         "last_velocity": 100,
@@ -356,38 +364,51 @@ def test_main_output_permission_denied(monkeypatch, tmp_path, capsys):
             }
         ],
     }
-    cfg_path = tmp_path / "cfg.json"
-    cfg_path.write_text(json.dumps(config))
-    # Make tmp_path and its parents accessible to the temporary user
-    orig_modes = {}
-    for p in [tmp_path, *tmp_path.parents]:
-        orig_modes[p] = os.stat(p).st_mode
-        os.chmod(p, 0o755)
-        if p == Path("/tmp"):
-            break
-    restricted_dir = tmp_path / "restricted"
-    restricted_dir.mkdir()
-    restricted_dir.chmod(0o555)
-    output_path = restricted_dir / "out.json"
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["sprint_velocity.py", str(cfg_path), "--output", str(output_path)],
-    )
-    orig_euid = os.geteuid()
-    os.seteuid(65534)  # switch to nobody user
+
+    work_dir = Path(tempfile.mkdtemp())
+    restricted_dir = None
     try:
-        with pytest.raises(SystemExit) as exc:
-            sv.main()
-        assert exc.value.code == 1
-        captured = capsys.readouterr()
-        assert "Error writing output file" in captured.err
-        assert "Permission denied" in captured.err
+        work_dir.chmod(0o755)
+        cfg_path = work_dir / "cfg.json"
+        cfg_path.write_text(json.dumps(config))
+        restricted_dir = work_dir / "restricted"
+        restricted_dir.mkdir()
+        restricted_dir.chmod(0o555)
+        output_path = restricted_dir / "out.json"
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["sprint_velocity.py", str(cfg_path), "--output", str(output_path)],
+        )
+
+        try:
+            nobody_uid = pwd.getpwnam("nobody").pw_uid
+        except KeyError:
+            pytest.skip("nobody user not found")
+
+        @contextmanager
+        def switch_euid(uid):
+            original_uid = os.geteuid()
+            os.seteuid(uid)
+            try:
+                yield
+            finally:
+                os.seteuid(original_uid)
+
+        with switch_euid(nobody_uid):
+            with pytest.raises(SystemExit) as exc:
+                sv.main()
+            assert exc.value.code == 1
+            captured = capsys.readouterr()
+            assert "Error writing output file" in captured.err
+            assert "Permission denied" in captured.err
     finally:
-        os.seteuid(orig_euid)
-        restricted_dir.chmod(0o755)
-        for p, mode in orig_modes.items():
-            os.chmod(p, mode)
+        if restricted_dir is not None:
+            try:
+                restricted_dir.chmod(0o700)
+            except Exception:
+                pass
+        shutil.rmtree(work_dir)
 
 def test_write_output_json_serialization_error(tmp_path):
     output_path = tmp_path / "out.json"
