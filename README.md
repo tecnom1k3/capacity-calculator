@@ -82,6 +82,43 @@ Member2              0           100           10.0              0           100
 Member3              1           100            9.0              0           100           10.0
 ```
 
+### Saving Output as JSON
+
+Use the `-o`/`--output` option to write the results to a JSON file. The
+output contains two top-level keys:
+
+- `metrics` – overall sprint metrics
+- `resources` – the per-resource availability breakdown
+
+Example invocation:
+
+```bash
+python sprint_velocity.py config.json --output results.json
+```
+
+Sample `results.json` structure (truncated for brevity):
+
+```json
+{
+  "metrics": {
+    "Sprint Days (per resource)": 10,
+    "Number of Resources": 3,
+    "Available Story Points for New Work": 36
+  },
+  "resources": [
+    {
+      "Name": "Member1",
+      "Last PTO Days": 2,
+      "Eff Days Next": 10.0
+    }
+  ]
+}
+```
+
+> **Note:** Prior versions used a `resource_details` key for the per-resource
+> breakdown. The current `resources` key is a breaking change for JSON
+> consumers; update any scripts that rely on the old name.
+
 ## Testing
 
 Run both linting and unit tests to verify changes before committing:

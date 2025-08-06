@@ -43,19 +43,19 @@ def get_baseline_velocity(config):
     return config.get("last_velocity", 0)
 
 
-def compute_effective_days(resources, sprint_days):
+def compute_effective_days(config_resources, sprint_days):
     """
     Compute each resource's effective days last and next sprint based on PTO and availability.
 
     Returns:
-      resource_details: list of per-resource availability dicts
-      total_last: sum of all resources' effective days last sprint
-      total_next: sum of all resources' effective days next sprint
+        resources: list of per-resource availability dicts
+        total_last: sum of all resources' effective days last sprint
+        total_next: sum of all resources' effective days next sprint
     """
-    resource_details = []
+    resources = []
     total_last = total_next = 0.0
     required = ["last_pto_days", "last_pct_avail", "next_pto_days", "next_pct_avail"]
-    for idx, r in enumerate(resources):
+    for idx, r in enumerate(config_resources):
         name = r.get("name", f"resource_{idx}")
 
         for key in required:
@@ -101,7 +101,7 @@ def compute_effective_days(resources, sprint_days):
         next_eff = (sprint_days - next_pto) * (next_pct / 100)
         total_last += last_eff
         total_next += next_eff
-        resource_details.append({
+        resources.append({
             "Name": name,
             "Last PTO Days": last_pto,
             "Last % Avail": last_pct,
@@ -110,7 +110,7 @@ def compute_effective_days(resources, sprint_days):
             "Next % Avail": next_pct,
             "Eff Days Next": round(next_eff, 2),
         })
-    return resource_details, total_last, total_next
+    return resources, total_last, total_next
 
 
 def perform_scaling(last_velocity, total_last, total_next):
@@ -143,7 +143,7 @@ def calculate_velocity(config):
     carryover = config.get("carryover_points", 0)
 
     last_velocity = get_baseline_velocity(config)
-    resource_details, total_last, total_next = compute_effective_days(
+    resources, total_last, total_next = compute_effective_days(
         config["resources"], sprint_days
     )
     raw_scaled, scaled = perform_scaling(last_velocity, total_last, total_next)
@@ -151,17 +151,17 @@ def calculate_velocity(config):
 
     metrics = {
         "Sprint Days (per resource)": sprint_days,
-        "Number of Resources": len(resource_details),
+        "Number of Resources": len(resources),
         "Total Effective Days (Last Sprint)": round(total_last, 2),
         "Total Effective Days (Next Sprint)": round(total_next, 2),
-        "Full Capacity Days (Baseline)": sprint_days * len(resource_details),
+        "Full Capacity Days (Baseline)": sprint_days * len(resources),
         "Raw Scaled Next Velocity": round(raw_scaled, 2),
         "Scaled Next Velocity (floored)": scaled,
         "Carry-over Story Points": carryover,
         "Available Story Points for New Work": available,
     }
 
-    return metrics, resource_details
+    return metrics, resources
 
 
 def build_parser():
@@ -197,8 +197,8 @@ def build_parser():
     return parser
 
 
-def write_output_json(output_path, metrics, resource_details, *, force=False):
-    """Safely write metrics and resource details to ``output_path``.
+def write_output_json(output_path, metrics, resources, *, force=False):
+    """Safely write metrics and resource breakdown to ``output_path``.
 
     The data is first written to a sibling temporary file which is then
     atomically moved into place. When ``force`` is ``False`` an atomic
@@ -226,7 +226,7 @@ def write_output_json(output_path, metrics, resource_details, *, force=False):
 
         with tmp_path.open("w", encoding="utf-8") as f:
             json.dump(
-                {"metrics": metrics, "resource_details": resource_details},
+                {"metrics": metrics, "resources": resources},
                 f,
                 indent=2,
             )
@@ -252,10 +252,10 @@ def main():
     args = parser.parse_args()
 
     config = load_config(args.config)
-    metrics, resource_details = calculate_velocity(config)
+    metrics, resources = calculate_velocity(config)
 
     metrics_df = pd.DataFrame(list(metrics.items()), columns=["Metric", "Value"])
-    resources_df = pd.DataFrame(resource_details)
+    resources_df = pd.DataFrame(resources)
 
     if args.output:
         output_path = Path(args.output)
@@ -268,7 +268,7 @@ def main():
                 sys.exit(1)
             print(f"Warning: Overwriting existing file '{output_path}'", file=sys.stderr)
         try:
-            write_output_json(output_path, metrics, resource_details, force=args.force)
+            write_output_json(output_path, metrics, resources, force=args.force)
         except (OSError, RuntimeError) as e:
             print(f"Error writing output file: {e}", file=sys.stderr)
             sys.exit(1)

@@ -69,13 +69,31 @@ def test_output_file_atomic_write(tmp_path):
     assert output_file.exists()
     assert not list(tmp_path.glob("*.tmp*"))
     data = json.loads(output_file.read_text())
-    assert "metrics" in data and "resource_details" in data
+    assert set(data.keys()) == {"metrics", "resources"}
+    assert isinstance(data["metrics"], dict)
+    assert isinstance(data["resources"], list)
+    expected_metric_keys = {
+        "Sprint Days (per resource)",
+        "Number of Resources",
+    }
+    expected_resource_keys = {
+        "Name",
+        "Last PTO Days",
+        "Last % Avail",
+        "Next PTO Days",
+        "Next % Avail",
+        "Eff Days Last",
+        "Eff Days Next",
+    }
+    assert expected_metric_keys <= set(data["metrics"].keys())
+    for resource in data["resources"]:
+        assert expected_resource_keys <= set(resource.keys())
 
 
 def test_output_file_cleanup_on_error(tmp_path, monkeypatch):
     output_file = tmp_path / "out.json"
     metrics = {"a": 1}
-    resource_details = []
+    resources = []
 
     def bad_dump(*args, **kwargs):  # simulate serialization failure
         raise ValueError("boom")
@@ -83,6 +101,6 @@ def test_output_file_cleanup_on_error(tmp_path, monkeypatch):
     monkeypatch.setattr(json, "dump", bad_dump)
 
     with pytest.raises(RuntimeError, match="Data serialization error"):
-        write_output_json(output_file, metrics, resource_details)
+        write_output_json(output_file, metrics, resources)
 
     assert not list(tmp_path.glob("*.tmp*"))
