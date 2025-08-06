@@ -3,6 +3,7 @@ import json
 import math
 import os
 import sys
+import textwrap
 from pathlib import Path
 
 import pandas as pd
@@ -165,8 +166,19 @@ def calculate_velocity(config):
 
 def build_parser():
     """Create and return the command-line argument parser."""
+    description = textwrap.dedent(
+        """
+        Calculate next sprint velocity from a configuration file.
+
+        Examples:
+          python sprint_velocity.py config.json
+          python sprint_velocity.py config.json --output results.json
+          python sprint_velocity.py config.json --output results.json --force
+        """
+    )
     parser = argparse.ArgumentParser(
-        description="Calculate next sprint velocity from a configuration file"
+        description=description,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("config", help="Path to configuration JSON file")
     parser.add_argument(
