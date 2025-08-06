@@ -96,7 +96,7 @@ Example invocation:
 python sprint_velocity.py config.json --output results.json
 ```
 
-Sample `results.json` structure:
+Sample `results.json` structure (truncated for brevity):
 
 ```json
 {
@@ -114,6 +114,10 @@ Sample `results.json` structure:
   ]
 }
 ```
+
+> **Note:** Prior versions used a `resource_details` key for the per-resource
+> breakdown. The current `resources` key is a breaking change for JSON
+> consumers; update any scripts that rely on the old name.
 
 ## Testing
 

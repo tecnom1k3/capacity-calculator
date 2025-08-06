@@ -48,9 +48,9 @@ def compute_effective_days(config_resources, sprint_days):
     Compute each resource's effective days last and next sprint based on PTO and availability.
 
     Returns:
-      resources: list of per-resource availability dicts
-      total_last: sum of all resources' effective days last sprint
-      total_next: sum of all resources' effective days next sprint
+        resources: list of per-resource availability dicts
+        total_last: sum of all resources' effective days last sprint
+        total_next: sum of all resources' effective days next sprint
     """
     resources = []
     total_last = total_next = 0.0
