@@ -237,7 +237,7 @@ def test_main_output_flag(monkeypatch, tmp_path):
     sv.main()
     assert output_path.exists()
     data = json.loads(output_path.read_text())
-    assert "metrics" in data and "resource_details" in data
+    assert "metrics" in data and "resources" in data
 
 
 def test_main_output_exists_without_force(monkeypatch, tmp_path):
@@ -301,7 +301,7 @@ def test_main_output_exists_with_force(monkeypatch, tmp_path, capsys):
     )
     sv.main()
     data = json.loads(output_path.read_text())
-    assert "metrics" in data and "resource_details" in data
+    assert "metrics" in data and "resources" in data
     captured = capsys.readouterr()
     assert "Warning: Overwriting" in captured.err
 
@@ -333,10 +333,10 @@ def test_main_concurrent_file_creation(monkeypatch, tmp_path):
 
     original_write = sv.write_output_json
 
-    def race_write(path, metrics, resource_details, *, force=False):
+    def race_write(path, metrics, resources, *, force=False):
         # Create the file just before the actual write to simulate a race
         Path(path).write_text("existing")
-        return original_write(path, metrics, resource_details, force=force)
+        return original_write(path, metrics, resources, force=force)
 
     monkeypatch.setattr(sv, "write_output_json", race_write)
     monkeypatch.setattr(

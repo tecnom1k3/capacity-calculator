@@ -69,13 +69,13 @@ def test_output_file_atomic_write(tmp_path):
     assert output_file.exists()
     assert not list(tmp_path.glob("*.tmp*"))
     data = json.loads(output_file.read_text())
-    assert "metrics" in data and "resource_details" in data
+    assert "metrics" in data and "resources" in data
 
 
 def test_output_file_cleanup_on_error(tmp_path, monkeypatch):
     output_file = tmp_path / "out.json"
     metrics = {"a": 1}
-    resource_details = []
+    resources = []
 
     def bad_dump(*args, **kwargs):  # simulate serialization failure
         raise ValueError("boom")
@@ -83,6 +83,6 @@ def test_output_file_cleanup_on_error(tmp_path, monkeypatch):
     monkeypatch.setattr(json, "dump", bad_dump)
 
     with pytest.raises(RuntimeError, match="Data serialization error"):
-        write_output_json(output_file, metrics, resource_details)
+        write_output_json(output_file, metrics, resources)
 
     assert not list(tmp_path.glob("*.tmp*"))
